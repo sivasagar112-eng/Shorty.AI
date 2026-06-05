@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shorty.AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="background-glow"></div>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fa-solid fa-bolt"></i>
+                <span>Shorty.AI</span>
+            </div>
+            <p class="tagline">Turn long videos into viral gold with AI</p>
+        </header>
+
+        <main>
+            <section class="input-section">
+                <div class="input-wrapper">
+                    <i class="fa-brands fa-youtube input-icon"></i>
+                    <input type="text" id="videoUrl" placeholder="Paste YouTube Video Link here..." autocomplete="off">
+                    <button id="analyzeBtn">
+                        <span>Analyze Video</span>
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </button>
+                </div>
+                <p id="errorMsg" class="error-message hidden"></p>
+            </section>
+
+            <section id="loaderSection" class="loader-section hidden">
+                <div class="scanner"></div>
+                <p class="loading-text">Analyzing content...</p>
+                <div class="steps">
+                    <span class="step" id="step1">Fetching video metadata...</span>
+                    <span class="step" id="step2">Extracting transcript...</span>
+                    <span class="step" id="step3">AI analyzing viral moments...</span>
+                </div>
+            </section>
+
+            <section id="resultsSection" class="results-section hidden">
+                <div class="video-info">
+                    <img id="videoThumb" src="" alt="Video Thumbnail" class="video-thumb">
+                    <div class="video-details">
+                        <h2 id="videoTitle">Video Title</h2>
+                        <p id="videoDuration">Duration: 10:00</p>
+                    </div>
+                </div>
+
+                <div class="results-header">
+                    <h3><i class="fa-solid fa-fire"></i> Top Viral Moments</h3>
+                    <span id="analysisBadge" class="analysis-badge"></span>
+                </div>
+
+                <div id="clipsContainer" class="clips-container">
+                    <!-- Cards will be injected here -->
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Developed by <span class="developer-name">Siva sagar</span></p>
+        </footer>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+
+</html>
