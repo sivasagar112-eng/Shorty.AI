@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? analyzeTranscript(transcript, metadata.durationSeconds)
                 : intelligentSimulation(metadata.durationSeconds);
 
-            renderClips(viralClips, videoId, !!transcript);
+            renderClips(viralClips, videoId, !!transcript, metadata.title);
 
             showLoader(false);
             resultsSection.classList.remove('hidden');
@@ -240,9 +240,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return selected.sort((a, b) => b.viralScore - a.viralScore).map(w => {
             const clipDur = Math.min(45 + Math.floor(Math.random() * 25), 75);
+            const endSec = Math.min(w.start + clipDur, totalSeconds);
             return {
                 start: formatTime(w.start),
-                end: formatTime(Math.min(w.start + clipDur, totalSeconds)),
+                end: formatTime(endSec),
+                startSec: w.start,
+                endSec: endSec,
+                durationSec: endSec - w.start,
                 timestampUrl: w.start,
                 score: w.viralScore,
                 keywords: extractTags(w.combined),
@@ -296,12 +300,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const clipDur = 35 + Math.floor(Math.random() * 30);
             const end = Math.min(start + clipDur, dur);
             const score = a.minScore + Math.floor(Math.random() * (99 - a.minScore));
-            return { start: formatTime(start), end: formatTime(end), timestampUrl: start, score, keywords: a.tags, reason: a.reason, preview: null };
+            return {
+                start: formatTime(start),
+                end: formatTime(end),
+                startSec: start,
+                endSec: end,
+                durationSec: end - start,
+                timestampUrl: start,
+                score,
+                keywords: a.tags,
+                reason: a.reason,
+                preview: null
+            };
         }).sort((a, b) => b.score - a.score);
     }
 
     // ─── Render Cards ─────────────────────────────────────────────────────────
-    function renderClips(clips, videoId, hasTranscript) {
+    function renderClips(clips, videoId, hasTranscript, videoTitleText) {
         clipsContainer.innerHTML = '';
 
         // Show source badge in results header
@@ -332,14 +347,244 @@ document.addEventListener('DOMContentLoaded', () => {
                 <p class="clip-reason">${clip.reason}</p>
                 <div class="clip-actions">
                     <a href="https://youtu.be/${videoId}?t=${clip.timestampUrl}" target="_blank" class="button-link">
-                        <button class="btn-watch">
-                            <i class="fa-brands fa-youtube"></i> Watch Clip
+                        <button class="btn-watch" type="button">
+                            <i class="fa-brands fa-youtube"></i> Watch
                         </button>
                     </a>
+                    <button class="btn-download" type="button" data-clip-index="${idx}">
+                        <i class="fa-solid fa-cloud-arrow-down"></i> Download Clip
+                    </button>
                 </div>
             `;
 
             clipsContainer.appendChild(card);
         });
+
+        // Attach download triggers
+        const downloadButtons = clipsContainer.querySelectorAll('.btn-download');
+        downloadButtons.forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const index = parseInt(btn.getAttribute('data-clip-index'), 10);
+                if (clips[index]) {
+                    const isServerUp = await checkServerHealth();
+                    if (isServerUp) {
+                        triggerDirectDownload(clips[index], videoId, videoTitleText, btn);
+                    } else {
+                        // Open helper modal explaining how to start the server for direct PC download
+                        openDownloadModal(clips[index], videoId, videoTitleText);
+                    }
+                }
+            });
+        });
+    }
+
+    // ─── Download Modal Controller ────────────────────────────────────────────
+    const downloadModal = document.getElementById('downloadModal');
+    const modalCloseBtn = document.getElementById('modalCloseBtn');
+    const modalPlayer = document.getElementById('modalPlayer');
+    const modalVideoTitle = document.getElementById('modalVideoTitle');
+    const modalTimelineBadge = document.getElementById('modalTimelineBadge');
+    const modalDurationBadge = document.getElementById('modalDurationBadge');
+    const modalScoreBadge = document.getElementById('modalScoreBadge');
+    const modalCmdInput = document.getElementById('modalCmdInput');
+    const modalCopyCmdBtn = document.getElementById('modalCopyCmdBtn');
+    const serverStatusBadge = document.getElementById('serverStatusBadge');
+    const serverSubtitle = document.getElementById('serverSubtitle');
+    const modalDirectDownloadBtn = document.getElementById('modalDirectDownloadBtn');
+    const directDownloadLabel = document.getElementById('directDownloadLabel');
+    const serverOfflineNotice = document.getElementById('serverOfflineNotice');
+    const btnRetryServer = document.getElementById('btnRetryServer');
+
+    let currentModalClip = null;
+    let currentModalVideoId = null;
+    let localServerOnline = false;
+
+    // Trigger direct file download from local server without opening any other website
+    function triggerDirectDownload(clip, videoId, title, btn) {
+        if (!clip || !videoId) return;
+
+        if (btn) {
+            btn.disabled = true;
+            btn.classList.add('loading');
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Clipping [${clip.start} - ${clip.end}]...`;
+        }
+
+        const downloadUrl = `http://localhost:5000/api/download?videoId=${videoId}&start=${clip.startSec}&end=${clip.endSec}&title=${encodeURIComponent(title || 'Shorty_Clip')}`;
+
+        // Create an invisible download anchor to trigger native browser file saving
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `${(title || 'Shorty_Clip').replace(/[^a-zA-Z0-9_\- ]/g, '')}_${clip.startSec}s_to_${clip.endSec}s.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        if (btn) {
+            setTimeout(() => {
+                btn.classList.remove('loading');
+                btn.classList.add('success');
+                btn.innerHTML = `<i class="fa-solid fa-circle-check"></i> Saved to Computer!`;
+
+                setTimeout(() => {
+                    btn.classList.remove('success');
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-down"></i> Download Clip`;
+                }, 3500);
+            }, 1200);
+        }
+    }
+
+    // Close modal interactions
+    function closeModal() {
+        if (!downloadModal) return;
+        downloadModal.classList.add('hidden');
+        if (modalPlayer) modalPlayer.src = ''; // Stop video playback
+    }
+
+    if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeModal);
+    if (downloadModal) {
+        const backdrop = downloadModal.querySelector('.modal-backdrop');
+        if (backdrop) backdrop.addEventListener('click', closeModal);
+    }
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && downloadModal && !downloadModal.classList.contains('hidden')) {
+            closeModal();
+        }
+    });
+
+    // Copy command button
+    if (modalCopyCmdBtn && modalCmdInput) {
+        modalCopyCmdBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(modalCmdInput.value);
+                const copyText = modalCopyCmdBtn.querySelector('.copy-text');
+                const copyIcon = modalCopyCmdBtn.querySelector('i');
+                modalCopyCmdBtn.classList.add('copied');
+                if (copyText) copyText.textContent = 'Copied! ✓';
+                if (copyIcon) copyIcon.className = 'fa-solid fa-check';
+
+                setTimeout(() => {
+                    modalCopyCmdBtn.classList.remove('copied');
+                    if (copyText) copyText.textContent = 'Copy';
+                    if (copyIcon) copyIcon.className = 'fa-regular fa-copy';
+                }, 2000);
+            } catch (err) {
+                modalCmdInput.select();
+                document.execCommand('copy');
+            }
+        });
+    }
+
+    // Direct download button inside modal
+    if (modalDirectDownloadBtn) {
+        modalDirectDownloadBtn.addEventListener('click', async () => {
+            if (!currentModalClip || !currentModalVideoId) return;
+
+            const isUp = await checkServerHealth();
+            if (!isUp) {
+                if (serverOfflineNotice) serverOfflineNotice.classList.remove('hidden');
+                return;
+            }
+
+            triggerDirectDownload(
+                currentModalClip,
+                currentModalVideoId,
+                modalVideoTitle.textContent,
+                modalDirectDownloadBtn
+            );
+        });
+    }
+
+    // Retry checking server connection
+    if (btnRetryServer) {
+        btnRetryServer.addEventListener('click', async () => {
+            btnRetryServer.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Checking...`;
+            const isUp = await checkServerHealth();
+            btnRetryServer.innerHTML = `<i class="fa-solid fa-rotate-right"></i> Check Connection Again`;
+            if (isUp && currentModalClip && currentModalVideoId) {
+                triggerDirectDownload(currentModalClip, currentModalVideoId, modalVideoTitle.textContent, modalDirectDownloadBtn);
+            }
+        });
+    }
+
+    // Check backend server availability
+    async function checkServerHealth() {
+        if (serverStatusBadge) {
+            serverStatusBadge.textContent = 'Checking...';
+            serverStatusBadge.className = 'server-badge checking';
+        }
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2000);
+            const res = await fetch('http://localhost:5000/api/health', { signal: controller.signal });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                localServerOnline = true;
+                if (serverStatusBadge) {
+                    serverStatusBadge.textContent = '● Online & Ready';
+                    serverStatusBadge.className = 'server-badge online';
+                }
+                if (serverSubtitle) {
+                    serverSubtitle.textContent = 'Clips only this timeline and saves directly into your Downloads folder';
+                }
+                if (directDownloadLabel) directDownloadLabel.textContent = 'Save MP4 to Computer';
+                if (modalDirectDownloadBtn) modalDirectDownloadBtn.disabled = false;
+                if (serverOfflineNotice) serverOfflineNotice.classList.add('hidden');
+                return true;
+            }
+        } catch {
+            // Server offline
+        }
+
+        localServerOnline = false;
+        if (serverStatusBadge) {
+            serverStatusBadge.textContent = '○ Server Offline';
+            serverStatusBadge.className = 'server-badge offline';
+        }
+        if (serverSubtitle) {
+            serverSubtitle.textContent = 'Start server with "start.bat" to enable direct MP4 saving';
+        }
+        if (directDownloadLabel) directDownloadLabel.textContent = 'Start Server to Save';
+        if (serverOfflineNotice) serverOfflineNotice.classList.remove('hidden');
+        return false;
+    }
+
+    function openDownloadModal(clip, videoId, videoTitleText) {
+        currentModalClip = clip;
+        currentModalVideoId = videoId;
+
+        if (modalVideoTitle) {
+            modalVideoTitle.textContent = videoTitleText || 'YouTube Viral Clip';
+        }
+
+        if (modalTimelineBadge) {
+            modalTimelineBadge.innerHTML = `<i class="fa-regular fa-clock"></i> ${clip.start} → ${clip.end}`;
+        }
+
+        if (modalDurationBadge) {
+            modalDurationBadge.textContent = `Duration: ${clip.durationSec || 30}s`;
+        }
+
+        if (modalScoreBadge) {
+            modalScoreBadge.innerHTML = `<i class="fa-solid fa-bolt"></i> ${clip.score} Score`;
+        }
+
+        // Embed video player with restricted start & end timeline boundary
+        if (modalPlayer) {
+            modalPlayer.src = `https://www.youtube.com/embed/${videoId}?start=${clip.startSec}&end=${clip.endSec}&autoplay=1&rel=0`;
+        }
+
+        // Generate exact CLI command for yt-dlp
+        if (modalCmdInput) {
+            modalCmdInput.value = `yt-dlp --download-sections "*${clip.start}-${clip.end}" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "https://www.youtube.com/watch?v=${videoId}"`;
+        }
+
+        // Check local server connection
+        checkServerHealth();
+
+        // Reveal modal
+        downloadModal.classList.remove('hidden');
     }
 });

@@ -72,6 +72,94 @@
         </footer>
     </div>
 
+    <!-- Download Modal -->
+    <div id="downloadModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modalVideoTitle">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <div class="modal-icon-badge">
+                        <i class="fa-solid fa-cloud-arrow-down"></i>
+                    </div>
+                    <div>
+                        <h3 id="modalVideoTitle">Download Viral Clip</h3>
+                        <div class="modal-badge-row">
+                            <span id="modalTimelineBadge" class="modal-time-badge"><i class="fa-regular fa-clock"></i> 00:00 → 00:45</span>
+                            <span id="modalDurationBadge" class="modal-duration-badge">Duration: 45s</span>
+                            <span id="modalScoreBadge" class="modal-score-badge"><i class="fa-solid fa-bolt"></i> 95 Score</span>
+                        </div>
+                    </div>
+                </div>
+                <button id="modalCloseBtn" class="modal-close" title="Close" aria-label="Close modal">&times;</button>
+            </div>
+
+            <div class="modal-body">
+                <!-- Preview Player with exact start/end boundary -->
+                <div class="modal-player-container">
+                    <iframe id="modalPlayer" src="" title="Clip Preview Player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                </div>
+
+                <div class="download-methods">
+                    <!-- Primary Direct Local Save -->
+                    <div class="method-card direct-save-card">
+                        <div class="method-info">
+                            <div class="method-icon-wrap primary-icon">
+                                <i class="fa-solid fa-cloud-arrow-down"></i>
+                            </div>
+                            <div>
+                                <div class="server-status-title">
+                                    <h4>Save Clipped MP4 to Computer</h4>
+                                    <span id="serverStatusBadge" class="server-badge checking">Checking...</span>
+                                </div>
+                                <p id="serverSubtitle">Clips only this timeline and saves directly into your Downloads folder</p>
+                            </div>
+                        </div>
+                        <button id="modalDirectDownloadBtn" class="btn-method btn-direct" type="button">
+                            <i class="fa-solid fa-download"></i>
+                            <span id="directDownloadLabel">Save MP4 Now</span>
+                        </button>
+                    </div>
+
+                    <!-- Offline Instructions (Shown only when server is offline) -->
+                    <div id="serverOfflineNotice" class="offline-notice-box hidden">
+                        <div class="offline-notice-header">
+                            <i class="fa-solid fa-circle-info"></i>
+                            <span>Local Clipper Server Needed</span>
+                        </div>
+                        <p>To clip videos and save them directly to your computer without third-party websites, launch your local server:</p>
+                        <div class="quick-start-command">
+                            <code>python server.py</code>
+                            <span>or double-click <strong>start.bat</strong></span>
+                        </div>
+                        <button id="btnRetryServer" class="btn-retry" type="button">
+                            <i class="fa-solid fa-rotate-right"></i> Check Connection Again
+                        </button>
+                    </div>
+
+                    <!-- CLI Command for Power Users -->
+                    <div class="method-card cli-method">
+                        <div class="method-info">
+                            <div class="method-icon-wrap terminal-icon">
+                                <i class="fa-solid fa-terminal"></i>
+                            </div>
+                            <div>
+                                <h4>Manual Terminal Command (yt-dlp)</h4>
+                                <p>Or copy this command to download the exact segment via CLI</p>
+                            </div>
+                        </div>
+                        <div class="cli-command-box">
+                            <input type="text" id="modalCmdInput" readonly value="" spellcheck="false">
+                            <button id="modalCopyCmdBtn" type="button" class="btn-copy" title="Copy to clipboard">
+                                <i class="fa-regular fa-copy"></i>
+                                <span class="copy-text">Copy</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="js/app.js"></script>
 </body>
 

@@ -310,7 +310,7 @@ button:active {
 
 .clip-actions {
     display: flex;
-    gap: 0.8rem;
+    gap: 0.75rem;
     margin-top: 0.5rem;
 }
 
@@ -319,6 +319,7 @@ button:active {
     flex: 1;
     text-decoration: none;
     display: block;
+    min-width: 0;
 }
 
 .btn-watch {
@@ -327,20 +328,21 @@ button:active {
     align-items: center;
     justify-content: center;
     gap: 0.55rem;
-    padding: 0.75rem 1.2rem;
+    padding: 0.75rem 1rem;
     border-radius: 2rem;
     border: none;
     cursor: pointer;
     font-family: 'Outfit', sans-serif;
-    font-size: 0.92rem;
+    font-size: 0.9rem;
     font-weight: 700;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.3px;
     color: #fff;
     background: linear-gradient(135deg, #ff0000 0%, #cc0000 60%, #8b0000 100%);
     box-shadow: 0 4px 18px rgba(255, 0, 0, 0.30);
     transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
     position: relative;
     overflow: hidden;
+    white-space: nowrap;
 }
 
 /* Shimmer sweep on hover */
@@ -358,8 +360,8 @@ button:active {
 }
 
 .btn-watch:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 28px rgba(255, 0, 0, 0.50);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(255, 0, 0, 0.50);
     background: linear-gradient(135deg, #ff2020 0%, #e00000 60%, #a00000 100%);
 }
 
@@ -371,6 +373,65 @@ button:active {
 /* YouTube icon pulse on hover */
 .btn-watch:hover .fa-youtube {
     animation: ytPulse 0.5s ease;
+}
+
+/* ─── Download Clip Button ───────────────────────────────────────────── */
+.btn-download {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    padding: 0.75rem 1rem;
+    border-radius: 2rem;
+    border: none;
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: #fff;
+    background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #6366f1 100%);
+    box-shadow: 0 4px 18px rgba(6, 182, 212, 0.35);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    position: relative;
+    overflow: hidden;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.btn-download::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.25) 50%, transparent 60%);
+    transform: translateX(-100%);
+    transition: transform 0.4s ease;
+}
+
+.btn-download:hover::before {
+    transform: translateX(100%);
+}
+
+.btn-download:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 26px rgba(6, 182, 212, 0.55);
+    background: linear-gradient(135deg, #08c8e8 0%, #4f92ff 50%, #7579ff 100%);
+}
+
+.btn-download:active {
+    transform: translateY(0);
+    box-shadow: 0 3px 10px rgba(6, 182, 212, 0.3);
+}
+
+.btn-download:hover .fa-cloud-arrow-down,
+.btn-download:hover .fa-download {
+    animation: dlBounce 0.5s ease;
+}
+
+@keyframes dlBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(3px); }
 }
 
 @keyframes ytPulse {
@@ -513,4 +574,506 @@ footer {
     background: rgba(99, 102, 241, 0.12);
     color: var(--primary-color);
     border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+/* ─── Download Modal ─────────────────────────────────────────────────── */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    animation: fadeIn 0.25s ease-out;
+}
+
+.modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(7, 11, 22, 0.82);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.modal-content {
+    position: relative;
+    z-index: 2;
+    background: rgba(15, 23, 42, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 1.25rem;
+    max-width: 640px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65), 0 0 35px rgba(6, 182, 212, 0.2);
+    animation: modalPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-content::-webkit-scrollbar {
+    width: 6px;
+}
+.modal-content::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+}
+.modal-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+@keyframes modalPop {
+    from {
+        transform: scale(0.92) translateY(10px);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--glass-border);
+    gap: 1rem;
+}
+
+.modal-title-group {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    min-width: 0;
+}
+
+.modal-icon-badge {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #06b6d4, #6366f1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    box-shadow: 0 4px 14px rgba(6, 182, 212, 0.4);
+}
+
+.modal-title-group h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 420px;
+}
+
+.modal-badge-row {
+    display: flex;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    margin-top: 0.25rem;
+}
+
+.modal-time-badge {
+    background: rgba(6, 182, 212, 0.15);
+    color: var(--accent-color);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+    padding: 0.15rem 0.55rem;
+    border-radius: 2rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.modal-duration-badge {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
+    border: 1px solid var(--glass-border);
+    padding: 0.15rem 0.55rem;
+    border-radius: 2rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.modal-score-badge {
+    background: rgba(236, 72, 153, 0.18);
+    color: var(--secondary-color);
+    border: 1px solid rgba(236, 72, 153, 0.35);
+    padding: 0.15rem 0.55rem;
+    border-radius: 2rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.modal-close {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--glass-border);
+    color: var(--text-secondary);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 1.4rem;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.modal-close:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--text-primary);
+    transform: rotate(90deg);
+}
+
+.modal-body {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+/* ─── Modal Player Container ────────────────────────────────────────── */
+.modal-player-container {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.modal-player-container iframe {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border: none;
+}
+
+/* ─── Download Methods List ──────────────────────────────────────────── */
+.download-methods {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.method-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    background: rgba(30, 41, 59, 0.65);
+    border: 1px solid var(--glass-border);
+    border-radius: 0.85rem;
+    padding: 0.95rem 1.15rem;
+    transition: all 0.2s ease;
+}
+
+.method-card:hover {
+    border-color: rgba(6, 182, 212, 0.4);
+    background: rgba(30, 41, 59, 0.85);
+}
+
+.method-info {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    min-width: 0;
+}
+
+.method-icon-wrap {
+    width: 38px;
+    height: 38px;
+    border-radius: 0.65rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.primary-icon {
+    background: rgba(6, 182, 212, 0.15);
+    color: var(--accent-color);
+    border: 1px solid rgba(6, 182, 212, 0.3);
+}
+
+.accent-icon {
+    background: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.terminal-icon {
+    background: rgba(236, 72, 153, 0.15);
+    color: var(--secondary-color);
+    border: 1px solid rgba(236, 72, 153, 0.3);
+}
+
+.method-info h4 {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.method-info p {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-top: 0.15rem;
+}
+
+.server-status-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.server-badge {
+    font-size: 0.68rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.server-badge.online {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.server-badge.offline {
+    background: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.server-badge.checking {
+    background: rgba(234, 179, 8, 0.2);
+    color: #facc15;
+    border: 1px solid rgba(234, 179, 8, 0.4);
+}
+
+.btn-method {
+    padding: 0.55rem 1.1rem;
+    border-radius: 2rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.btn-cutter {
+    background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(6, 182, 212, 0.3);
+}
+
+.btn-cutter:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(6, 182, 212, 0.5);
+    filter: brightness(1.1);
+}
+
+.btn-direct {
+    background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #6366f1 100%);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35);
+    padding: 0.65rem 1.3rem;
+    font-size: 0.88rem;
+}
+
+.btn-direct:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 22px rgba(6, 182, 212, 0.55);
+    filter: brightness(1.1);
+}
+
+.btn-direct:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Offline Notice Box */
+.offline-notice-box {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 0.85rem;
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.offline-notice-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #f87171;
+    font-weight: 600;
+    font-size: 0.92rem;
+}
+
+.offline-notice-box p {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.quick-start-command {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid var(--glass-border);
+    border-radius: 0.5rem;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8rem;
+}
+
+.quick-start-command code {
+    color: #a5f3fc;
+    font-family: 'Consolas', monospace;
+    font-weight: bold;
+}
+
+.quick-start-command span {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.btn-retry {
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    padding: 0.4rem 0.9rem;
+    border-radius: 0.5rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: background 0.2s ease;
+}
+
+.btn-retry:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: var(--accent-color);
+}
+
+/* Button Loading State */
+.btn-download.loading {
+    background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%) !important;
+    cursor: wait !important;
+    opacity: 0.9;
+}
+
+.btn-download.success {
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+    box-shadow: 0 4px 18px rgba(34, 197, 94, 0.4) !important;
+}
+
+/* CLI Method (Horizontal layout inside card) */
+.cli-method {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+}
+
+.cli-command-box {
+    display: flex;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid var(--glass-border);
+    border-radius: 0.55rem;
+    padding: 0.35rem 0.5rem;
+    gap: 0.5rem;
+}
+
+.cli-command-box input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #a5f3fc;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.76rem;
+    outline: none;
+    padding: 0.2rem 0.4rem;
+}
+
+.btn-copy {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    padding: 0.35rem 0.75rem;
+    border-radius: 0.4rem;
+    font-size: 0.74rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.btn-copy:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: var(--accent-color);
+}
+
+.btn-copy.copied {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: #22c55e;
+    color: #4ade80;
+}
+
+@media (max-width: 600px) {
+    .clip-actions {
+        flex-direction: column;
+    }
+
+    .modal-content {
+        max-height: 94vh;
+    }
+
+    .modal-header {
+        padding: 1rem;
+    }
+
+    .modal-body {
+        padding: 1rem;
+    }
+
+    .method-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .btn-method {
+        justify-content: center;
+    }
 }
