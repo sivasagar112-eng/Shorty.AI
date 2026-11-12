@@ -984,6 +984,56 @@ footer {
     border-color: var(--accent-color);
 }
 
+/* Open Folder Buttons */
+.btn-open-folder {
+    margin-left: auto;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    padding: 0.35rem 0.85rem;
+    border-radius: 2rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    transition: all 0.2s ease;
+}
+
+.btn-open-folder:hover {
+    background: rgba(6, 182, 212, 0.2);
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    transform: translateY(-1px);
+}
+
+.direct-btn-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+
+.btn-folder-link {
+    background: transparent;
+    border: none;
+    color: var(--accent-color);
+    font-size: 0.74rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    text-decoration: underline;
+    opacity: 0.85;
+    transition: opacity 0.2s ease;
+}
+
+.btn-folder-link:hover {
+    opacity: 1;
+}
+
 /* Button Loading State */
 .btn-download.loading {
     background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%) !important;

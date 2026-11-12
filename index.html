@@ -59,6 +59,9 @@
                 <div class="results-header">
                     <h3><i class="fa-solid fa-fire"></i> Top Viral Moments</h3>
                     <span id="analysisBadge" class="analysis-badge"></span>
+                    <button id="btnOpenFolder" class="btn-open-folder" type="button" title="Open the clips folder on your PC">
+                        <i class="fa-solid fa-folder-open"></i> Open Clips Folder
+                    </button>
                 </div>
 
                 <div id="clipsContainer" class="clips-container">
@@ -114,10 +117,15 @@
                                 <p id="serverSubtitle">Clips only this timeline and saves directly into your Downloads folder</p>
                             </div>
                         </div>
-                        <button id="modalDirectDownloadBtn" class="btn-method btn-direct" type="button">
-                            <i class="fa-solid fa-download"></i>
-                            <span id="directDownloadLabel">Save MP4 Now</span>
-                        </button>
+                        <div class="direct-btn-group">
+                            <button id="modalDirectDownloadBtn" class="btn-method btn-direct" type="button">
+                                <i class="fa-solid fa-download"></i>
+                                <span id="directDownloadLabel">Save MP4 Now</span>
+                            </button>
+                            <button id="modalOpenFolderBtn" class="btn-folder-link" type="button" title="Open the clips folder on your PC">
+                                <i class="fa-solid fa-folder-open"></i> Where is it saved?
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Offline Instructions (Shown only when server is offline) -->

@@ -76,6 +76,18 @@ def health():
         "message": "Shorty.AI Companion Server is active and ready"
     })
 
+@app.route("/api/open-downloads")
+def open_downloads_folder():
+    """Opens the local server downloads folder in Windows Explorer."""
+    try:
+        if sys.platform == "win32":
+            os.startfile(DOWNLOADS_DIR)
+        else:
+            subprocess.Popen(["xdg-open", DOWNLOADS_DIR])
+        return jsonify({"success": True, "path": DOWNLOADS_DIR})
+    except Exception as e:
+        return jsonify({"error": str(e), "path": DOWNLOADS_DIR}), 500
+
 @app.route("/api/download")
 def download_clip():
     video_id = request.args.get("videoId")
@@ -107,7 +119,7 @@ def download_clip():
 
     yt_url = f"https://www.youtube.com/watch?v={video_id}"
 
-    # Clip using yt-dlp python module
+    # Clip using yt-dlp python module with anti-SSL drop & IPv4 settings
     try:
         import yt_dlp
         ydl_opts = {
@@ -116,7 +128,21 @@ def download_clip():
             'force_keyframes_at_cuts': True,
             'outtmpl': os.path.join(DOWNLOADS_DIR, f"{clean_title}_{int(start_sec)}s_to_{int(end_sec)}s.%(ext)s"),
             'quiet': False,
-            'no_warnings': True,
+            'no_warnings': False,
+            'source_address': '0.0.0.0',  # Force IPv4 to prevent unexpected SSL EOF drops on Windows
+            'nocheckcertificate': True,
+            'socket_timeout': 30,
+            'retries': 5,
+            'fragment_retries': 5,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['ios', 'android', 'web_creator', 'web']
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+            }
         }
         if FFMPEG_PATH:
             ydl_opts['ffmpeg_location'] = os.path.dirname(FFMPEG_PATH)
@@ -124,7 +150,7 @@ def download_clip():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([yt_url])
 
-        if os.path.exists(output_path):
+        if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
             return send_file(
                 output_path,
                 as_attachment=True,
@@ -132,12 +158,15 @@ def download_clip():
                 mimetype="video/mp4"
             )
     except Exception as e:
-        print(f"yt_dlp download error: {e}")
+        print(f"yt_dlp Python module error: {e}")
 
-    # Fallback to CLI command
+    # Fallback to CLI command with --force-ipv4 and mobile player client
     try:
         cmd = [
             sys.executable, "-m", "yt_dlp",
+            "--force-ipv4",
+            "--no-check-certificates",
+            "--extractor-args", "youtube:player_client=ios,android,web_creator,web",
             "--download-sections", f"*{start_sec}-{end_sec}",
             "--force-keyframes-at-cuts",
             "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
@@ -148,7 +177,7 @@ def download_clip():
             cmd.extend(["--ffmpeg-location", os.path.dirname(FFMPEG_PATH)])
 
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=120)
-        if result.returncode == 0 and os.path.exists(output_path):
+        if result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
             return send_file(
                 output_path,
                 as_attachment=True,
@@ -157,7 +186,11 @@ def download_clip():
             )
         else:
             err = result.stderr or result.stdout or "Error clipping video"
-            return jsonify({"error": "Clipping failed", "details": err}), 500
+            return jsonify({
+                "error": "Clipping failed",
+                "details": err,
+                "suggestion": "YouTube dropped the SSL connection. Please ensure your internet connection or VPN is stable."
+            }), 500
     except Exception as ex:
         return jsonify({"error": "Download processing failed", "details": str(ex)}), 500
 

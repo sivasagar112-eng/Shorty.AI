@@ -394,10 +394,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const directDownloadLabel = document.getElementById('directDownloadLabel');
     const serverOfflineNotice = document.getElementById('serverOfflineNotice');
     const btnRetryServer = document.getElementById('btnRetryServer');
+    const btnOpenFolder = document.getElementById('btnOpenFolder');
+    const modalOpenFolderBtn = document.getElementById('modalOpenFolderBtn');
 
     let currentModalClip = null;
     let currentModalVideoId = null;
     let localServerOnline = false;
+
+    // Helper to open the local saved folder on the user's PC
+    async function openDownloadsFolder() {
+        try {
+            await fetch('http://localhost:5000/api/open-downloads');
+        } catch {
+            alert('Your clipped videos are saved in:\n1. Your Windows Downloads folder (Downloads)\n2. Local folder: Shorty.AI\\downloads');
+        }
+    }
+
+    if (btnOpenFolder) btnOpenFolder.addEventListener('click', openDownloadsFolder);
+    if (modalOpenFolderBtn) modalOpenFolderBtn.addEventListener('click', openDownloadsFolder);
 
     // Trigger direct file download from local server without opening any other website
     function triggerDirectDownload(clip, videoId, title, btn) {
