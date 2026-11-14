@@ -22,6 +22,8 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
   const [aspectRatio, setAspectRatio] = useState(clip?.aspectRatio || '9:16');
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
+  const [downloadStage, setDownloadStage] = useState('');
   const [copiedCmd, setCopiedCmd] = useState(false);
   const [checkingServer, setCheckingServer] = useState(false);
 
@@ -38,23 +40,51 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
 
   const cliCommand = `yt-dlp --download-sections "*${clip.start}-${clip.end}" -f "bestvideo[height<=1080]+bestaudio/best" "https://www.youtube.com/watch?v=${videoId}"`;
 
-  const handleDirectDownload = () => {
+  const handleDirectDownload = async () => {
     setIsDownloading(true);
     setDownloadSuccess(false);
+    setDownloadError('');
+    setDownloadStage('Connecting to local clipper engine...');
 
-    // Trigger browser download via invisible anchor
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = `${(clip.title || 'Shorty_Clip').replace(/[^a-zA-Z0-9_\- ]/g, '')}_${clip.startSec}s_to_${clip.endSec}s_${quality}p.mp4`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const timer = setTimeout(() => {
+      setDownloadStage(`Extracting and cutting ${clip.durationSec}s segment in ${quality}p HD (usually 15-30s)...`);
+    }, 2000);
 
-    setTimeout(() => {
-      setIsDownloading(false);
+    try {
+      const response = await fetch(downloadUrl);
+      clearTimeout(timer);
+
+      if (!response.ok) {
+        let errDetails = `Server returned status ${response.status}`;
+        try {
+          const errJson = await response.json();
+          errDetails = errJson.details || errJson.error || errDetails;
+        } catch {}
+        throw new Error(errDetails);
+      }
+
+      setDownloadStage('Saving MP4 file to your computer...');
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const cleanName = (clip.title || projectTitle || 'Shorty_Clip').replace(/[^a-zA-Z0-9_\- ]/g, '').trim();
+      a.download = `${cleanName}_${clip.startSec}s_to_${clip.endSec}s_${quality}p.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(a);
+
       setDownloadSuccess(true);
-      setTimeout(() => setDownloadSuccess(false), 4000);
-    }, 1500);
+      setDownloadStage('Saved successfully to Downloads folder!');
+      setTimeout(() => setDownloadSuccess(false), 5000);
+    } catch (err) {
+      console.error('Download error:', err);
+      setDownloadError(err.message || 'Download failed. Please ensure the local server is running and try selecting 720p.');
+    } finally {
+      setIsDownloading(false);
+      clearTimeout(timer);
+    }
   };
 
   const handleCopyCmd = async () => {
@@ -162,57 +192,81 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
           </div>
 
           {/* Direct Download Card */}
-          <div className="p-5 rounded-2xl bg-gradient-to-br from-cyan-950/30 to-indigo-950/30 border border-cyan-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-cyan-950/20">
-            <div>
-              <div className="flex items-center space-x-2 mb-1">
-                <h4 className="text-sm font-bold text-white">Save MP4 Directly to PC</h4>
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    serverStatus.online
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                      : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                  }`}
-                >
-                  {serverStatus.online ? 'Local Server Ready' : 'Server Offline'}
-                </span>
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-cyan-950/30 to-indigo-950/30 border border-cyan-500/30 flex flex-col space-y-4 shadow-lg shadow-cyan-950/20">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center space-x-2 mb-1">
+                  <h4 className="text-sm font-bold text-white">Save MP4 Directly to PC</h4>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      serverStatus.online
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    }`}
+                  >
+                    {serverStatus.online ? 'Local Server Ready' : 'Server Offline'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400">
+                  Clips ONLY this {clip.durationSec}s timeline with zero third-party cutter websites.
+                </p>
               </div>
-              <p className="text-xs text-gray-400">
-                Clips ONLY this {clip.durationSec}s timeline with zero third-party cutter websites.
-              </p>
+
+              <div className="flex flex-col items-end space-y-2 flex-shrink-0">
+                <button
+                  onClick={handleDirectDownload}
+                  disabled={isDownloading}
+                  className="w-full sm:w-auto px-6 py-3 rounded-xl gradient-btn text-white text-sm font-bold flex items-center justify-center space-x-2 shadow-lg shadow-cyan-500/30"
+                >
+                  {downloadSuccess ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-300" />
+                      <span>Saved to Computer!</span>
+                    </>
+                  ) : isDownloading ? (
+                    <>
+                      <RotateCcw className="w-4 h-4 animate-spin" />
+                      <span>Clipping Video...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CloudDownload className="w-4 h-4" />
+                      <span>Download {quality}p MP4</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={handleOpenFolder}
+                  className="text-[11px] text-cyan-400 hover:underline flex items-center gap-1 font-medium"
+                >
+                  <FolderOpen className="w-3 h-3" />
+                  <span>Open downloaded clips folder</span>
+                </button>
+              </div>
             </div>
 
-            <div className="flex flex-col items-end space-y-2 flex-shrink-0">
-              <button
-                onClick={handleDirectDownload}
-                disabled={isDownloading}
-                className="w-full sm:w-auto px-6 py-3 rounded-xl gradient-btn text-white text-sm font-bold flex items-center justify-center space-x-2 shadow-lg shadow-cyan-500/30"
-              >
-                {downloadSuccess ? (
-                  <>
-                    <Check className="w-4 h-4 text-emerald-300" />
-                    <span>Saved to Computer!</span>
-                  </>
-                ) : isDownloading ? (
-                  <>
-                    <RotateCcw className="w-4 h-4 animate-spin" />
-                    <span>Clipping Video...</span>
-                  </>
-                ) : (
-                  <>
-                    <CloudDownload className="w-4 h-4" />
-                    <span>Download {quality}p MP4</span>
-                  </>
-                )}
-              </button>
+            {/* Live progress stage indicator */}
+            {isDownloading && (
+              <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center space-x-3 text-xs text-cyan-300 animate-fadeIn">
+                <RotateCcw className="w-4 h-4 animate-spin flex-shrink-0 text-cyan-400" />
+                <span className="font-medium">{downloadStage}</span>
+              </div>
+            )}
 
-              <button
-                onClick={handleOpenFolder}
-                className="text-[11px] text-cyan-400 hover:underline flex items-center gap-1 font-medium"
-              >
-                <FolderOpen className="w-3 h-3" />
-                <span>Open downloaded clips folder</span>
-              </button>
-            </div>
+            {/* Error display */}
+            {downloadError && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-start space-x-3 text-xs text-red-300 animate-fadeIn">
+                <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold">Download Failed</p>
+                  <p className="text-red-400/90 text-[11px] font-mono break-all">{downloadError}</p>
+                  <p className="text-[10px] text-gray-400">
+                    Tip: Switch resolution to 720p or use the yt-dlp command below if YouTube blocks video downloads.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Server Offline Instructions Box (if offline) */}

@@ -170,6 +170,40 @@ def health():
         "message": "Shorty.AI Companion Server is active and ready"
     })
 
+@app.route("/api/info")
+def video_info():
+    """Extract real video metadata and duration using yt-dlp."""
+    video_id = request.args.get("videoId")
+    if not video_id:
+        return jsonify({"error": "Missing videoId parameter"}), 400
+
+    yt_url = f"https://www.youtube.com/watch?v={video_id}"
+    try:
+        import yt_dlp
+        ydl_opts = {
+            'skip_download': True,
+            'quiet': True,
+            'no_warnings': True,
+            'source_address': '0.0.0.0',
+            'extract_flat': True,
+            'socket_timeout': 15,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(yt_url, download=False)
+            duration_sec = info.get("duration") or 0
+            mins = int(duration_sec // 60)
+            secs = int(duration_sec % 60)
+            duration_str = f"{mins}:{secs:02d}"
+            return jsonify({
+                "title": info.get("title") or "YouTube Video",
+                "duration": duration_sec,
+                "durationFormatted": duration_str,
+                "author": info.get("uploader") or info.get("channel") or "Creator",
+                "thumbnail": info.get("thumbnail") or f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+            })
+    except Exception as e:
+        return jsonify({"error": str(e), "duration": 600, "durationFormatted": "10:00"}), 200
+
 @app.route("/api/open-downloads")
 def open_downloads_folder():
     """Opens the local server downloads folder in Windows Explorer."""

@@ -64,6 +64,28 @@ export function getYouTubeId(url) {
 }
 
 export async function fetchYouTubeMetadata(videoId) {
+  // 1. Try local companion server first (yt-dlp extract_flat provides exact duration)
+  try {
+    const serverRes = await fetch(`http://localhost:5000/api/info?videoId=${videoId}`, {
+      signal: AbortSignal.timeout(4000)
+    });
+    if (serverRes.ok) {
+      const info = await serverRes.json();
+      if (info && info.duration && info.duration > 0) {
+        return {
+          title: info.title || 'YouTube Video',
+          author: info.author || 'Creator',
+          thumbnail: info.thumbnail || `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+          durationSeconds: info.duration,
+          duration: info.durationFormatted || formatTime(info.duration)
+        };
+      }
+    }
+  } catch {
+    // Companion server offline or timed out, continue to fallback
+  }
+
+  // 2. Fallback to public YouTube oEmbed
   try {
     const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
     if (!res.ok) throw new Error('oEmbed error');
@@ -87,36 +109,43 @@ export async function fetchYouTubeMetadata(videoId) {
 }
 
 export async function fetchTranscript(videoId) {
-  const base = `https://www.youtube.com/api/timedtext?lang=en&v=${videoId}&fmt=json3`;
+  // Support English, Hindi, and generic auto-captions
+  const langs = ['en', 'hi', ''];
   const proxies = [
-    `https://corsproxy.io/?${encodeURIComponent(base)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(base)}`
+    (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
   ];
 
-  for (const proxy of proxies) {
-    try {
-      const res = await fetch(proxy, { signal: AbortSignal.timeout(6000) });
-      if (!res.ok) continue;
-      const text = await res.text();
-      if (!text || text.trim() === '' || text.trim() === '{}') continue;
-      const data = JSON.parse(text);
-      if (!data.events || data.events.length < 5) continue;
+  for (const lang of langs) {
+    const langParam = lang ? `lang=${lang}&` : '';
+    const base = `https://www.youtube.com/api/timedtext?${langParam}v=${videoId}&fmt=json3`;
 
-      const events = data.events
-        .filter(e => e.segs && e.segs.length)
-        .map(e => ({
-          start: Math.floor((e.tStartMs || 0) / 1000),
-          dur: Math.floor((e.dDurationMs || 3000) / 1000),
-          text: e.segs.map(s => s.utf8 || '').join('').replace(/\n/g, ' ').trim()
-        }))
-        .filter(e => e.text.length > 1);
+    for (const makeProxy of proxies) {
+      try {
+        const proxyUrl = makeProxy(base);
+        const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(4000) });
+        if (!res.ok) continue;
+        const text = await res.text();
+        if (!text || text.trim() === '' || text.trim() === '{}') continue;
+        const data = JSON.parse(text);
+        if (!data.events || data.events.length < 5) continue;
 
-      const last = data.events[data.events.length - 1];
-      const totalSec = Math.floor(((last.tStartMs || 0) + (last.dDurationMs || 0)) / 1000);
+        const events = data.events
+          .filter(e => e.segs && e.segs.length)
+          .map(e => ({
+            start: Math.floor((e.tStartMs || 0) / 1000),
+            dur: Math.floor((e.dDurationMs || 3000) / 1000),
+            text: e.segs.map(s => s.utf8 || '').join('').replace(/\n/g, ' ').trim()
+          }))
+          .filter(e => e.text.length > 1);
 
-      return { events, totalSeconds: totalSec || 600 };
-    } catch {
-      continue;
+        const last = data.events[data.events.length - 1];
+        const totalSec = Math.floor(((last.tStartMs || 0) + (last.dDurationMs || 0)) / 1000);
+
+        return { events, totalSeconds: totalSec || 600 };
+      } catch {
+        continue;
+      }
     }
   }
   return null;
