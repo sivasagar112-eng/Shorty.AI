@@ -7,8 +7,6 @@ __pycache__/
 env/
 build/
 develop-eggs/
-dist/
-downloads/
 eggs/
 .eggs/
 lib/
@@ -33,3 +31,11 @@ bin/
 .DS_Store
 Thumbs.db
 
+# React / Node
+node_modules/
+dist/
+.vite/
+*.local
+
+# Downloads folder (video clips saved locally)
+downloads/
