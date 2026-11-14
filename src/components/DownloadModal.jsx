@@ -20,6 +20,7 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
   const { serverStatus } = useProject();
   const [quality, setQuality] = useState('1080');
   const [aspectRatio, setAspectRatio] = useState(clip?.aspectRatio || '9:16');
+  const [fitMode, setFitMode] = useState('crop'); // 'crop' | 'blur'
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [downloadError, setDownloadError] = useState('');
@@ -36,6 +37,7 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
     title: clip.title || projectTitle || 'Shorty_Clip',
     quality,
     aspectRatio,
+    fitMode,
   });
 
   const cliCommand = `yt-dlp --download-sections "*${clip.start}-${clip.end}" -f "bestvideo[height<=1080]+bestaudio/best" "https://www.youtube.com/watch?v=${videoId}"`;
@@ -47,8 +49,8 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
     setDownloadStage('Connecting to local clipper engine...');
 
     const timer = setTimeout(() => {
-      setDownloadStage(`Extracting and cutting ${clip.durationSec}s segment in ${quality}p HD (usually 15-30s)...`);
-    }, 2000);
+      setDownloadStage(`Extracting and reframing to ${aspectRatio} in ${quality}p HD (usually 15-30s)...`);
+    }, 2500);
 
     try {
       const response = await fetch(downloadUrl);
@@ -63,13 +65,14 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
         throw new Error(errDetails);
       }
 
-      setDownloadStage('Saving MP4 file to your computer...');
+      setDownloadStage('Saving MP4 to your computer...');
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
       const cleanName = (clip.title || projectTitle || 'Shorty_Clip').replace(/[^a-zA-Z0-9_\- ]/g, '').trim();
-      a.download = `${cleanName}_${clip.startSec}s_to_${clip.endSec}s_${quality}p.mp4`;
+      const cleanAspect = (aspectRatio || '9:16').replace(':', 'x');
+      a.download = `${cleanName}_${clip.startSec}s_to_${clip.endSec}s_${quality}p_${cleanAspect}_${fitMode}.mp4`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(blobUrl);
@@ -172,8 +175,8 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
                 onChange={(e) => setQuality(e.target.value)}
                 className="bg-black/50 border border-white/10 text-white text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-400"
               >
-                <option value="1080">1080p Full HD (Recommended)</option>
-                <option value="720">720p HD (Faster)</option>
+                <option value="1080">1080p Full HD (1080x1920)</option>
+                <option value="720">720p HD (720x1280)</option>
               </select>
             </div>
 
@@ -186,9 +189,24 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
               >
                 <option value="9:16">9:16 Vertical (Shorts/Reels)</option>
                 <option value="1:1">1:1 Square (Instagram)</option>
+                <option value="4:5">4:5 Portrait (Feeds)</option>
                 <option value="16:9">16:9 Landscape (Full)</option>
               </select>
             </div>
+
+            {aspectRatio !== '16:9' && (
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-semibold text-gray-300">Framing:</span>
+                <select
+                  value={fitMode}
+                  onChange={(e) => setFitMode(e.target.value)}
+                  className="bg-black/50 border border-white/10 text-white text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-400"
+                >
+                  <option value="crop">Fill Vertical (Center Crop)</option>
+                  <option value="blur">Blurred Background (Fit)</option>
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Direct Download Card */}

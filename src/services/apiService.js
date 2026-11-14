@@ -33,9 +33,9 @@ export async function openDownloadsFolder() {
   }
 }
 
-export function getDownloadUrl({ videoId, startSec, endSec, title, quality = '1080', aspectRatio = '9:16' }) {
+export function getDownloadUrl({ videoId, startSec, endSec, title, quality = '1080', aspectRatio = '9:16', fitMode = 'crop' }) {
   const cleanTitle = encodeURIComponent(title || 'Shorty_Clip');
-  return `${API_BASE}/api/download?videoId=${videoId}&start=${startSec}&end=${endSec}&title=${cleanTitle}&quality=${quality}&aspectRatio=${aspectRatio}`;
+  return `${API_BASE}/api/download?videoId=${videoId}&start=${startSec}&end=${endSec}&title=${cleanTitle}&quality=${quality}&aspectRatio=${aspectRatio}&fitMode=${fitMode}`;
 }
 
 export async function uploadVideoFile(file, onProgress) {

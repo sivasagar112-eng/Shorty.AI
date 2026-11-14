@@ -216,6 +216,64 @@ def open_downloads_folder():
     except Exception as e:
         return jsonify({"error": str(e), "path": DOWNLOADS_DIR}), 500
 
+def reframe_video(input_path, output_path, aspect_ratio="9:16", quality="1080", fit_mode="crop", ffmpeg_path=None):
+    """
+    Reframes an input video (16:9) into target aspect ratio (9:16, 1:1, 4:5, 16:9)
+    using FFmpeg with high-definition scaling and visually lossless H.264 encoding.
+    """
+    if not ffmpeg_path:
+        ffmpeg_path = find_ffmpeg() or "ffmpeg"
+
+    is_720 = "720" in quality
+    if aspect_ratio == "9:16":
+        w, h = (720, 1280) if is_720 else (1080, 1920)
+    elif aspect_ratio == "1:1":
+        w, h = (720, 720) if is_720 else (1080, 1080)
+    elif aspect_ratio == "4:5":
+        w, h = (720, 900) if is_720 else (1080, 1350)
+    else:  # 16:9
+        w, h = (1280, 720) if is_720 else (1920, 1080)
+
+    if aspect_ratio == "16:9":
+        # Standard landscape, encode cleanly to MP4
+        cmd = [
+            ffmpeg_path, "-y", "-i", input_path,
+            "-vf", f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+            "-c:a", "aac", "-b:a", "192k",
+            output_path
+        ]
+    elif fit_mode == "blur":
+        # Blurred background with original video centered
+        filter_complex = (
+            f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},boxblur=25:5[bg];"
+            f"[0:v]scale={w}:-2[fg];"
+            f"[bg][fg]overlay=(W-w)/2:(H-h)/2[outv]"
+        )
+        cmd = [
+            ffmpeg_path, "-y", "-i", input_path,
+            "-filter_complex", filter_complex,
+            "-map", "[outv]", "-map", "0:a?",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+            "-c:a", "aac", "-b:a", "192k",
+            output_path
+        ]
+    else:
+        # Standard full-bleed center crop for vertical 9:16 (Shorts/Reels)
+        vf = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}"
+        cmd = [
+            ffmpeg_path, "-y", "-i", input_path,
+            "-vf", vf,
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+            "-c:a", "aac", "-b:a", "192k",
+            output_path
+        ]
+
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=180)
+    if res.returncode != 0 or not os.path.exists(output_path) or os.path.getsize(output_path) < 1000:
+        raise RuntimeError(f"FFmpeg reframing failed: {res.stderr or res.stdout}")
+    return output_path
+
 @app.route("/api/download")
 def download_clip():
     video_id = request.args.get("videoId")
@@ -223,6 +281,8 @@ def download_clip():
     end = request.args.get("end", "30")
     title = request.args.get("title", f"clip_{video_id}")
     quality = request.args.get("quality", "1080").lower()
+    aspect_ratio = request.args.get("aspectRatio", "9:16")
+    fit_mode = request.args.get("fitMode", "crop").lower()
 
     if not video_id:
         return jsonify({"error": "Missing videoId parameter"}), 400
@@ -233,28 +293,28 @@ def download_clip():
     except ValueError:
         start_sec, end_sec = 0.0, 30.0
 
-    # Format selector tailored for high quality (720p to 1080p)
-    if quality in ["720", "720p"]:
+    # Ensure format selector requests high quality (up to 1080p or 720p)
+    if "720" in quality:
         format_selector = (
-            "bestvideo[height<=720][height>=480]+bestaudio/"
             "bestvideo[height<=720]+bestaudio/"
             "best[height<=720]/best"
         )
         tag = "720p"
-    else:  # Default to 1080p / high resolution
+    else:  # Default to 1080p
         format_selector = (
-            "bestvideo[height<=1080][height>=720]+bestaudio/"
+            "bestvideo[height>=1080]+bestaudio/"
             "bestvideo[height<=1080]+bestaudio/"
             "bestvideo+bestaudio/"
-            "best[height>=720]/best"
+            "best"
         )
         tag = "1080p"
 
+    clean_aspect = aspect_ratio.replace(":", "x")
     clean_title = re.sub(r'[^a-zA-Z0-9_\- ]', '', title)[:40].strip() or f"clip_{video_id}"
-    output_filename = f"{clean_title}_{int(start_sec)}s_to_{int(end_sec)}s_{tag}.mp4"
+    output_filename = f"{clean_title}_{int(start_sec)}s_to_{int(end_sec)}s_{tag}_{clean_aspect}_{fit_mode}.mp4"
     output_path = os.path.join(DOWNLOADS_DIR, output_filename)
 
-    # Return cached clip if already clipped at this quality
+    # Return cached clip if already clipped at this exact quality & aspect ratio
     if os.path.exists(output_path) and os.path.getsize(output_path) > 10000:
         return send_file(
             output_path,
@@ -264,8 +324,10 @@ def download_clip():
         )
 
     yt_url = f"https://www.youtube.com/watch?v={video_id}"
+    raw_temp_base = os.path.join(DOWNLOADS_DIR, f"raw_{video_id}_{int(start_sec)}_{int(end_sec)}_{tag}")
 
-    # Clip using yt-dlp with High Definition (720p-1080p) + FFmpeg remuxing
+    # Step 1: Clip raw segment using yt-dlp
+    raw_file = None
     try:
         import yt_dlp
         ydl_opts = {
@@ -273,10 +335,10 @@ def download_clip():
             'merge_output_format': 'mp4',
             'download_ranges': yt_dlp.utils.download_range_func(None, [(start_sec, end_sec)]),
             'force_keyframes_at_cuts': True,
-            'outtmpl': os.path.join(DOWNLOADS_DIR, f"{clean_title}_{int(start_sec)}s_to_{int(end_sec)}s_{tag}.%(ext)s"),
+            'outtmpl': f"{raw_temp_base}.%(ext)s",
             'quiet': False,
             'no_warnings': False,
-            'source_address': '0.0.0.0',  # Force IPv4 to prevent SSL handshake drops on Windows
+            'source_address': '0.0.0.0',
             'nocheckcertificate': True,
             'socket_timeout': 30,
             'retries': 5,
@@ -297,50 +359,74 @@ def download_clip():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([yt_url])
 
-        if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
-            return send_file(
-                output_path,
-                as_attachment=True,
-                download_name=output_filename,
-                mimetype="video/mp4"
-            )
+        candidates = glob.glob(f"{raw_temp_base}.*")
+        if candidates and os.path.getsize(candidates[0]) > 1000:
+            raw_file = candidates[0]
     except Exception as e:
-        print(f"yt_dlp Python module error: {e}")
+        print(f"yt_dlp module download warning: {e}")
 
-    # Fallback to CLI command with explicit 720p/1080p format selection
+    # Fallback to CLI command if Python module failed
+    if not raw_file or not os.path.exists(raw_file):
+        try:
+            cli_raw = f"{raw_temp_base}.mp4"
+            cmd = [
+                sys.executable, "-m", "yt_dlp",
+                "--force-ipv4",
+                "--no-check-certificates",
+                "--extractor-args", "youtube:player_client=web_creator,web,tv,ios,android",
+                "--download-sections", f"*{start_sec}-{end_sec}",
+                "--force-keyframes-at-cuts",
+                "--merge-output-format", "mp4",
+                "-f", format_selector,
+                "-o", cli_raw,
+                yt_url
+            ]
+            if FFMPEG_PATH:
+                cmd.extend(["--ffmpeg-location", os.path.dirname(FFMPEG_PATH)])
+
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=140)
+            if res.returncode == 0 and os.path.exists(cli_raw) and os.path.getsize(cli_raw) > 1000:
+                raw_file = cli_raw
+        except Exception as ex:
+            print(f"yt_dlp CLI fallback warning: {ex}")
+
+    if not raw_file or not os.path.exists(raw_file):
+        return jsonify({
+            "error": "Clipping failed",
+            "details": "Could not download the specified clip from YouTube. Please check network/DNS connection or try 720p."
+        }), 500
+
+    # Step 2: Reframe into 9:16 vertical / selected aspect ratio with FFmpeg
     try:
-        cmd = [
-            sys.executable, "-m", "yt_dlp",
-            "--force-ipv4",
-            "--no-check-certificates",
-            "--extractor-args", "youtube:player_client=web_creator,web,tv,ios,android",
-            "--download-sections", f"*{start_sec}-{end_sec}",
-            "--force-keyframes-at-cuts",
-            "--merge-output-format", "mp4",
-            "-f", format_selector,
-            "-o", output_path,
-            yt_url
-        ]
-        if FFMPEG_PATH:
-            cmd.extend(["--ffmpeg-location", os.path.dirname(FFMPEG_PATH)])
+        reframe_video(
+            input_path=raw_file,
+            output_path=output_path,
+            aspect_ratio=aspect_ratio,
+            quality=quality,
+            fit_mode=fit_mode,
+            ffmpeg_path=FFMPEG_PATH
+        )
+    except Exception as reframe_err:
+        print(f"Reframing error: {reframe_err}")
+        # If reframing failed, fallback to serving the raw file
+        shutil.copy(raw_file, output_path)
+    finally:
+        # Clean up temporary raw file
+        for f in glob.glob(f"{raw_temp_base}.*"):
+            try:
+                os.remove(f)
+            except Exception:
+                pass
 
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=140)
-        if result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
-            return send_file(
-                output_path,
-                as_attachment=True,
-                download_name=output_filename,
-                mimetype="video/mp4"
-            )
-        else:
-            err = result.stderr or result.stdout or "Error clipping video"
-            return jsonify({
-                "error": "Clipping failed",
-                "details": err,
-                "suggestion": "Video format could not be clipped. Try selecting 720p or Best."
-            }), 500
-    except Exception as ex:
-        return jsonify({"error": "Download processing failed", "details": str(ex)}), 500
+    if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+        return send_file(
+            output_path,
+            as_attachment=True,
+            download_name=output_filename,
+            mimetype="video/mp4"
+        )
+
+    return jsonify({"error": "Failed to generate reframed clip"}), 500
 
 if __name__ == "__main__":
     print("=" * 60)
