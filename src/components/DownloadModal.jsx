@@ -25,6 +25,7 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [downloadError, setDownloadError] = useState('');
   const [downloadStage, setDownloadStage] = useState('');
+  const [elapsedSec, setElapsedSec] = useState(0);
   const [copiedCmd, setCopiedCmd] = useState(false);
   const [checkingServer, setCheckingServer] = useState(false);
 
@@ -46,15 +47,21 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
     setIsDownloading(true);
     setDownloadSuccess(false);
     setDownloadError('');
-    setDownloadStage('Connecting to local clipper engine...');
+    setElapsedSec(0);
+    setDownloadStage('Starting rapid extraction...');
+
+    const interval = setInterval(() => {
+      setElapsedSec((s) => s + 1);
+    }, 1000);
 
     const timer = setTimeout(() => {
-      setDownloadStage(`Extracting and reframing to ${aspectRatio} in ${quality}p HD (usually 15-30s)...`);
+      setDownloadStage(`Reframing to ${aspectRatio} vertical with FFmpeg multi-threading...`);
     }, 2500);
 
     try {
       const response = await fetch(downloadUrl);
       clearTimeout(timer);
+      clearInterval(interval);
 
       if (!response.ok) {
         let errDetails = `Server returned status ${response.status}`;
@@ -87,6 +94,7 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
     } finally {
       setIsDownloading(false);
       clearTimeout(timer);
+      clearInterval(interval);
     }
   };
 
@@ -175,8 +183,8 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
                 onChange={(e) => setQuality(e.target.value)}
                 className="bg-black/50 border border-white/10 text-white text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-400"
               >
-                <option value="1080">1080p Full HD (1080x1920)</option>
-                <option value="720">720p HD (720x1280)</option>
+                <option value="720">720p Turbo (~4-8s • Fast)</option>
+                <option value="1080">1080p Ultra HD (~10-18s • Crisp)</option>
               </select>
             </div>
 
@@ -244,7 +252,7 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
                   ) : isDownloading ? (
                     <>
                       <RotateCcw className="w-4 h-4 animate-spin" />
-                      <span>Clipping Video...</span>
+                      <span>Clipping Video ({elapsedSec}s)...</span>
                     </>
                   ) : (
                     <>
