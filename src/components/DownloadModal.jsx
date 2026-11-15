@@ -183,8 +183,8 @@ export default function DownloadModal({ clip, videoId, projectTitle, onClose }) 
                 onChange={(e) => setQuality(e.target.value)}
                 className="bg-black/50 border border-white/10 text-white text-xs font-bold rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-400"
               >
-                <option value="720">720p Turbo (~4-8s • Fast)</option>
-                <option value="1080">1080p Ultra HD (~10-18s • Crisp)</option>
+                <option value="1080">1080p Ultra HD (Master Quality • Recommended)</option>
+                <option value="720">720p HD (Fast)</option>
               </select>
             </div>
 

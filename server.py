@@ -218,8 +218,9 @@ def open_downloads_folder():
 
 def reframe_video(input_path, output_path, aspect_ratio="9:16", quality="1080", fit_mode="crop", ffmpeg_path=None):
     """
-    Reframes an input video (16:9) into target aspect ratio (9:16, 1:1, 4:5, 16:9)
-    using FFmpeg with multi-threaded ultrafast encoding for sub-3-second rendering.
+    Reframes an input video into target aspect ratio (9:16, 1:1, 4:5, 16:9)
+    using Lanczos high-order sinc interpolation, smart sharpening,
+    and visually lossless H.264 encoding (CRF 17, veryfast preset).
     """
     if not ffmpeg_path:
         ffmpeg_path = find_ffmpeg() or "ffmpeg"
@@ -234,42 +235,52 @@ def reframe_video(input_path, output_path, aspect_ratio="9:16", quality="1080", 
     else:  # 16:9
         w, h = (1280, 720) if is_720 else (1920, 1080)
 
-    # Use ultrafast preset + all CPU threads for maximum rendering speed
-    fast_opts = ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "20", "-threads", "0", "-c:a", "aac", "-b:a", "128k"]
+    # Master-quality encoding settings:
+    # -crf 17: visually lossless studio quality
+    # -preset veryfast: enables full 8x8 DCT, CABAC & Trellis quantization
+    # flags=lanczos+accurate_rnd: prevents soft blur during scaling/cropping
+    # unsharp=3:3:0.4: enhances fine textures, text & facial details
+    hq_opts = [
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "17",
+        "-threads", "0",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        "-b:a", "192k"
+    ]
 
     if aspect_ratio == "16:9":
-        # Fast remux / scaling with ultrafast encoding
         cmd = [
             ffmpeg_path, "-y", "-i", input_path,
-            "-vf", f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2",
-            *fast_opts,
+            "-vf", f"scale={w}:{h}:force_original_aspect_ratio=decrease:flags=lanczos+accurate_rnd,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,unsharp=3:3:0.4",
+            *hq_opts,
             output_path
         ]
     elif fit_mode == "blur":
-        # Optimized blur background (fast boxblur)
         filter_complex = (
-            f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},boxblur=15:3[bg];"
-            f"[0:v]scale={w}:-2[fg];"
+            f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase:flags=bicubic,crop={w}:{h},boxblur=20:4[bg];"
+            f"[0:v]scale={w}:-2:flags=lanczos+accurate_rnd,unsharp=3:3:0.4[fg];"
             f"[bg][fg]overlay=(W-w)/2:(H-h)/2[outv]"
         )
         cmd = [
             ffmpeg_path, "-y", "-i", input_path,
             "-filter_complex", filter_complex,
             "-map", "[outv]", "-map", "0:a?",
-            *fast_opts,
+            *hq_opts,
             output_path
         ]
     else:
-        # High-speed center crop for 9:16 Shorts/Reels
-        vf = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}"
+        # High-definition center crop for 9:16 Shorts/Reels with Lanczos scaling + detail enhancer
+        vf = f"scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos+accurate_rnd,crop={w}:{h},unsharp=3:3:0.4"
         cmd = [
             ffmpeg_path, "-y", "-i", input_path,
             "-vf", vf,
-            *fast_opts,
+            *hq_opts,
             output_path
         ]
 
-    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=90)
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=120)
     if res.returncode != 0 or not os.path.exists(output_path) or os.path.getsize(output_path) < 1000:
         raise RuntimeError(f"FFmpeg reframing failed: {res.stderr or res.stdout}")
     return output_path
@@ -293,23 +304,20 @@ def download_clip():
     except ValueError:
         start_sec, end_sec = 0.0, 30.0
 
-    # Prioritize fast H.264 streams from YouTube CDN (downloads 4x faster than AV1)
+    # For 1080p, pull master high-bitrate stream (up to 4K/1440p/1080p) so 9:16 crop retains full pixel density
     if "720" in quality:
         format_selector = (
-            "bestvideo[height<=720][vcodec^=avc1]+bestaudio[acodec^=mp4a]/"
-            "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/"
             "bestvideo[height<=720]+bestaudio/"
             "best[height<=720]/best"
         )
-        tag = "720p"
+        tag = "720p_hq"
     else:  # 1080p
         format_selector = (
-            "bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/"
-            "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/"
-            "bestvideo[height<=1080]+bestaudio/"
+            "bestvideo[height<=2160]+bestaudio/"
+            "bestvideo+bestaudio/"
             "best"
         )
-        tag = "1080p"
+        tag = "1080p_hq"
 
     clean_aspect = aspect_ratio.replace(":", "x")
     clean_title = re.sub(r'[^a-zA-Z0-9_\- ]', '', title)[:40].strip() or f"clip_{video_id}"
